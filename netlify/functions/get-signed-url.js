@@ -1,4 +1,3 @@
-// netlify/functions/get-wasabi-token.js
 const AWS = require('aws-sdk');
 
 exports.handler = async (event) => {
@@ -16,7 +15,9 @@ exports.handler = async (event) => {
   }
 
   try {
-    const { filename } = JSON.parse(event.body);
+    console.log('Function started'); // Log qo'shamiz
+    
+    const { filename, contentType = 'application/octet-stream' } = JSON.parse(event.body);
     
     if (!filename) {
       return {
@@ -29,24 +30,28 @@ exports.handler = async (event) => {
       };
     }
 
+    console.log('Creating signed URL for:', filename);
+
     // AWS SDK ni sozlash
     const s3 = new AWS.S3({
       accessKeyId: process.env.WASABI_KEY,
       secretAccessKey: process.env.WASABI_SECRET,
       region: 'ap-northeast-2',
       endpoint: 'https://s3.ap-northeast-2.wasabisys.com',
-      s3ForcePathStyle: true
+      s3ForcePathStyle: true,
+      signatureVersion: 'v4'
     });
 
     // Signed URL yaratish
     const params = {
       Bucket: 'dbtest',
       Key: filename,
-      Expires: 3600, // 1 soat
-      ContentType: 'application/octet-stream'
+      Expires: 3600,
+      ContentType: contentType
     };
 
-    const signedUrl = s3.getSignedUrl('putObject', params);
+    const signedUrl = await s3.getSignedUrlPromise('putObject', params);
+    console.log('Signed URL created successfully');
 
     return {
       statusCode: 200,
@@ -61,13 +66,17 @@ exports.handler = async (event) => {
     };
 
   } catch (error) {
+    console.error('Error in function:', error);
     return {
       statusCode: 500,
       headers: {
         'Access-Control-Allow-Origin': '*',
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ error: error.message })
+      body: JSON.stringify({ 
+        error: error.message,
+        details: 'Check Netlify function logs' 
+      })
     };
   }
 };
