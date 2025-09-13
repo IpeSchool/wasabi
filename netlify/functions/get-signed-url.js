@@ -14,7 +14,7 @@ export async function handler(event) {
     }
 
     const s3 = new S3Client({
-      region: "Osaka ap-northeast-2",
+      region: "ap-northeast-2",
       endpoint: "https://s3.wasabisys.com",
       credentials: {
         accessKeyId: process.env.WASABI_KEY,
