@@ -1,65 +1,73 @@
-import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
-import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+// netlify/functions/get-wasabi-token.js
+const AWS = require('aws-sdk');
 
-export async function handler(event) {
-  // Preflight OPTIONS so'roviga javob
-  if (event.httpMethod === "OPTIONS") {
+exports.handler = async (event) => {
+  // CORS preflight
+  if (event.httpMethod === 'OPTIONS') {
     return {
-      statusCode: 204,
+      statusCode: 200,
       headers: {
-        "Access-Control-Allow-Origin": "*",  // xavfsizlik uchun o'zingizning domeningizni qo'ying
-        "Access-Control-Allow-Headers": "Content-Type",
-        "Access-Control-Allow-Methods": "POST, OPTIONS",
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Headers': 'Content-Type',
+        'Access-Control-Allow-Methods': 'POST, OPTIONS'
       },
-      body: "",
+      body: ''
     };
   }
 
   try {
-    const body = JSON.parse(event.body);
-    const filename = body.filename;
-
+    const { filename } = JSON.parse(event.body);
+    
     if (!filename) {
       return {
         statusCode: 400,
         headers: {
-          "Access-Control-Allow-Origin": "*",
+          'Access-Control-Allow-Origin': '*',
+          'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ error: "Filename kerak" }),
+        body: JSON.stringify({ error: 'Filename required' })
       };
     }
 
-    const s3 = new S3Client({
-      region: "ap-northeast-2",
-      endpoint: "https://s3.wasabisys.com",
-      credentials: {
-        accessKeyId: process.env.WASABI_KEY,
-        secretAccessKey: process.env.WASABI_SECRET,
-      },
+    // AWS SDK ni sozlash
+    const s3 = new AWS.S3({
+      accessKeyId: process.env.WASABI_KEY,
+      secretAccessKey: process.env.WASABI_SECRET,
+      region: 'ap-northeast-2',
+      endpoint: 'https://s3.ap-northeast-2.wasabisys.com',
+      s3ForcePathStyle: true
     });
 
-    const command = new PutObjectCommand({
-      Bucket: "dbtest",
+    // Signed URL yaratish
+    const params = {
+      Bucket: 'dbtest',
       Key: filename,
-    });
+      Expires: 3600, // 1 soat
+      ContentType: 'application/octet-stream'
+    };
 
-    const url = await getSignedUrl(s3, command, { expiresIn: 3600 });
+    const signedUrl = s3.getSignedUrl('putObject', params);
 
     return {
       statusCode: 200,
       headers: {
-        "Access-Control-Allow-Origin": "*",  // xavfsizlik uchun o'zingizning domeningizni qo'ying
-        "Content-Type": "application/json",
+        'Access-Control-Allow-Origin': '*',
+        'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ url }),
+      body: JSON.stringify({ 
+        signedUrl,
+        filename 
+      })
     };
-  } catch (err) {
+
+  } catch (error) {
     return {
       statusCode: 500,
       headers: {
-        "Access-Control-Allow-Origin": "*",
+        'Access-Control-Allow-Origin': '*',
+        'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ error: err.message }),
+      body: JSON.stringify({ error: error.message })
     };
   }
-}
+};
